@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+pg_db_info.txt
+*.zip
+*.log
+.flopi_db_sync_state.json
+*.tmp
+logs/
+dist/
+build/
+*.egg-info/

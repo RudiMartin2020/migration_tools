@@ -1,0 +1,9 @@
+1. sqlite path : /home/laiwas/workspace/FLOPI/flopi_source
+2. 리눅스 CENT OS Stream 10
+3.  sqlite에서 PostgreSQL 로 동기화 목적
+3. 테이블명을 입력받아  primary  key 기준으로 없는것은 insert 
+4. 컬럼값이 변경 된것은 업데이트 
+5. 리눅스에서 단독으로 동작하는 파이썬 프로젝트 생성 
+6. 인자값은 테이블명 
+
+

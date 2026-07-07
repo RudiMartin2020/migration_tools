@@ -1,0 +1,25 @@
+[project]
+name = "flopi-sync"
+version = "0.1.0"
+description = "SQLite -> PostgreSQL 테이블 동기화 단독 실행 도구"
+requires-python = ">=3.9"
+dependencies = [
+    "psycopg[binary]>=3.1",
+    "python-dotenv>=1.0",
+]
+
+[project.scripts]
+flopi-sync = "flopi_db_sync.cli:main"
+
+# 사내 Nexus PyPI 인덱스 (인터넷 PyPI 대신 사용)
+[[tool.uv.index]]
+name = "nexus"
+url = "https://scpnexus.itplatform.samsundisplay.net:8081/nexus/repository/pypi/simple"
+default = true
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/flopi_db_sync"]

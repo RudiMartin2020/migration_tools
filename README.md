@@ -91,7 +91,7 @@ uv run python -m flopi_db_sync users -v    # 상세 로그
 ### 옵션
 | 옵션 | 설명 |
 |------|------|
-| `--delete` | 원본(SQLite)에 없는 행을 PG에서 삭제 (단방향 미러 동기화). **`.env` 의 `ALLOW_DELETE=true` 일 때만 동작** |
+| `--prune` | 원본(SQLite)에 없는 행을 PG에서 정리(삭제) — 단방향 미러 동기화. **`.env` 의 `ALLOW_PRUNE=true` 일 때만 동작** |
 | `--incremental COL` | `COL` 워터마크 기준 변경분만 전송 (전체 스캔 회피) |
 | `--full-refresh` | 저장된 워터마크 무시하고 전체 재동기화 |
 | `--sync-sequence` | 동기화 후 PK 시퀀스(SERIAL/IDENTITY)를 최댓값으로 보정. **PK 시퀀스 탐지는 항상 수행**되고, 보정만 이 옵션(또는 `.env` `SYNC_SEQUENCE=true`)으로 켜짐 |
@@ -102,13 +102,13 @@ uv run python -m flopi_db_sync users -v    # 상세 로그
 
 ```bash
 # 전체 upsert + 삭제 미러
-uv run flopi-sync users --delete
+uv run flopi-sync users --prune
 
 # updated_at 기준 증분 (이후 실행은 변경분만)
 uv run flopi-sync users --incremental updated_at
 
 # 증분 + 삭제 동시 (삭제 감지는 PK 전체 비교로 수행)
-uv run flopi-sync users --incremental updated_at --delete
+uv run flopi-sync users --incremental updated_at --prune
 
 # 워터마크 리셋 후 전체 재동기화
 uv run flopi-sync users --incremental updated_at --full-refresh
@@ -130,7 +130,7 @@ flopi-sync <테이블명>
 | `PG_SCHEMA` | 대상 스키마 (기본 public) |
 | `BATCH_SIZE` | 배치 처리 행 수 (기본 1000) |
 | `STATE_FILE` | 증분 워터마크 상태 파일 (기본 `.flopi_db_sync_state.json`) |
-| `ALLOW_DELETE` | 삭제 동기화(`--delete`) 허용 여부 (기본 `false` = 차단) |
+| `ALLOW_PRUNE` | 정리 동기화(`--prune`) 허용 여부 (기본 `false` = 차단) |
 | `SYNC_SEQUENCE` | 동기화 후 PK 시퀀스 자동 보정 여부 (기본 `false`) |
 | `INSERT_ONLY` | PK 중복 무시·신규만 INSERT 여부 (기본 `false`) |
 | `ADD_COLUMNS` | 원본 신규 컬럼을 PG에 자동 `ALTER ADD COLUMN` 여부 (기본 `false`) |
@@ -147,7 +147,7 @@ flopi-sync <테이블명>
    단일 문으로 upsert 한다. (변경된 컬럼이 있는 행만 UPDATE, 불필요한 쓰기 방지)
 4. `--incremental` 시 워터마크 컬럼 `>= 직전값` 행만 읽어 전송하고, 커밋 성공 후
    새 최댓값을 `STATE_FILE` 에 저장한다. (`>=` 라 같은 시각 행도 누락되지 않음)
-5. `--delete` 시 원본 PK 전체를 임시 테이블(COPY)에 적재한 뒤 anti-join `DELETE`
+5. `--prune` 시 원본 PK 전체를 임시 테이블(COPY)에 적재한 뒤 anti-join `DELETE`
    로 PG의 잉여행을 제거한다. (upsert·삭제가 같은 트랜잭션 내에서 원자적으로 반영)
 6. PK 시퀀스(SERIAL/IDENTITY)를 **항상 탐지**해 로그로 알리고, `--sync-sequence`
    (또는 `SYNC_SEQUENCE=true`) 시 동기화 후 시퀀스를 최댓값으로 보정한다.
@@ -178,7 +178,7 @@ PG_DB=<데이터베이스명>
 PG_SCHEMA=<스키마>
 BATCH_SIZE=1000
 STATE_FILE=/opt/flopi-sync/.flopi_db_sync_state.json
-ALLOW_DELETE=false        # --delete 허용 시 true
+ALLOW_PRUNE=false         # --prune 허용 시 true
 SYNC_SEQUENCE=false       # 시퀀스 자동 보정 시 true
 ```
 
@@ -187,7 +187,7 @@ SYNC_SEQUENCE=false       # 시퀀스 자동 보정 시 true
 cd /opt/flopi-sync
 uv run flopi-sync <테이블명>                              # 전체 upsert
 uv run flopi-sync <테이블명> --incremental updated_at     # 증분
-uv run flopi-sync <테이블명> --incremental updated_at --delete  # 증분+삭제 미러
+uv run flopi-sync <테이블명> --incremental updated_at --prune   # 증분+정리 미러
 ```
 
 ### 3) 정기 실행 (cron)
@@ -210,7 +210,7 @@ uv run flopi-sync <테이블명> --incremental updated_at --delete  # 증분+삭
 ### 5) 운영 팁
 - **첫 증분 실행**은 워터마크가 없어 전체를 한 번 읽는다(이후부터 변경분만). 대량 테이블은 최초 1회 `--full-refresh`로 기준선을 잡는 것을 권장.
 - **워터마크 꼬임/재적재**가 필요하면 `--full-refresh` 또는 `STATE_FILE` 삭제 후 재실행.
-- **삭제 미러(`--delete`)**는 기본 차단되어 있다. 사용하려면 `.env` 에 `ALLOW_DELETE=true` 를 설정해야 하며(미설정 시 종료코드 `2`로 중단), 원본 PK 전체를 비교하므로 원본이 일부만 들어온 상태(부분 적재)에서 실행하면 정상 데이터가 삭제될 수 있다 → 원본 적재 완료 후 실행.
+- **정리 미러(`--prune`)**는 기본 차단되어 있다. 사용하려면 `.env` 에 `ALLOW_PRUNE=true` 를 설정해야 하며(미설정 시 종료코드 `2`로 중단), 원본 PK 전체를 비교하므로 원본이 일부만 들어온 상태(부분 적재)에서 실행하면 정상 데이터가 삭제될 수 있다 → 원본 적재 완료 후 실행.
 - 여러 테이블에 FK 의존성이 있으면 **부모 테이블 먼저** 인자 순서를 잡는다.
 - **시퀀스 기반 PK + 앱이 PG에 직접 INSERT** 하는 테이블은 `--sync-sequence`(또는
   `SYNC_SEQUENCE=true`)로 보정해야 이후 nextval 충돌을 막는다.

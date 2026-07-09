@@ -26,8 +26,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("tables", nargs="+", help="동기화할 테이블명 (여러 개 가능)")
     parser.add_argument(
-        "--delete", action="store_true",
-        help="원본에 없는 행을 PG에서 삭제(미러 동기화)",
+        "--prune", action="store_true",
+        help="원본에 없는 행을 PG에서 정리(미러 동기화)",
     )
     parser.add_argument(
         "--incremental", metavar="COL",
@@ -66,11 +66,11 @@ def main(argv: list[str] | None = None) -> int:
         log.error("%s", exc)
         return 2
 
-    # 삭제 동기화는 .env 정책(ALLOW_DELETE)으로만 허용 — 실수 방지 가드
-    if args.delete and not settings.allow_delete:
+    # 정리 동기화는 .env 정책(ALLOW_PRUNE)으로만 허용 — 실수 방지 가드
+    if args.prune and not settings.allow_prune:
         log.error(
-            "삭제 동기화(--delete)가 정책상 비활성화되어 있습니다. "
-            "허용하려면 .env 에 ALLOW_DELETE=true 를 설정하세요."
+            "정리 동기화(--prune)가 정책상 비활성화되어 있습니다. "
+            "허용하려면 .env 에 ALLOW_PRUNE=true 를 설정하세요."
         )
         return 2
 
@@ -81,7 +81,7 @@ def main(argv: list[str] | None = None) -> int:
                 table,
                 settings,
                 incremental_col=args.incremental,
-                delete=args.delete,
+                prune=args.prune,
                 full_refresh=args.full_refresh,
                 sync_sequence=args.sync_sequence or settings.sync_sequence,
                 insert_only=args.insert_only or settings.insert_only,

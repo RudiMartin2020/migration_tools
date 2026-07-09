@@ -3,7 +3,7 @@
 지원 기능
   - PK 기준 upsert: 없는 행 INSERT / 변경된 행만 UPDATE
   - 타입 변환 계층(#1): PG information_schema 타입 기준 안전 변환(boolean/bytea 등)
-  - 삭제 동기화(#7): --delete 시 원본에 없는 행을 PG에서 제거(미러)
+  - 정리 동기화(#7): --prune 시 원본에 없는 행을 PG에서 제거(미러)
   - 증분 동기화(#6): --incremental COL 워터마크 기준 변경분만 전송
 """
 
@@ -303,7 +303,7 @@ def sync_table(
     settings: Settings,
     *,
     incremental_col: Optional[str] = None,
-    delete: bool = False,
+    prune: bool = False,
     full_refresh: bool = False,
     sync_sequence: bool = False,
     insert_only: bool = False,
@@ -313,9 +313,9 @@ def sync_table(
     _validate_identifier(table)
     if incremental_col:
         _validate_identifier(incremental_col)
-    if delete and not settings.allow_delete:
+    if prune and not settings.allow_prune:
         raise PermissionError(
-            "삭제 동기화가 비활성화되어 있습니다 (.env ALLOW_DELETE=true 필요)"
+            "정리 동기화가 비활성화되어 있습니다 (.env ALLOW_PRUNE=true 필요)"
         )
     # SQLITE_PATH 는 실제 DB '파일'이어야 한다 (없으면 빈 DB 자동생성 방지)
     if not os.path.isfile(settings.sqlite_path):
@@ -341,7 +341,7 @@ def sync_table(
             raise ValueError(f"증분 기준 컬럼이 테이블에 없습니다: {incremental_col}")
         logger.info("테이블 %s | 컬럼 %d | PK %s | 모드 %s%s",
                     table, len(meta.columns), meta.pk, mode,
-                    " +delete" if delete else "")
+                    " +prune" if prune else "")
 
         # 증분 워터마크 로딩
         st = {}
@@ -440,10 +440,10 @@ def sync_table(
                         affected += pcur.rowcount
                     logger.info("진행: %d행 전송", read_rows)
 
-                # 삭제 동기화 (같은 트랜잭션 내, upsert 이후)
-                if delete:
+                # 정리 동기화 (같은 트랜잭션 내, upsert 이후)
+                if prune:
                     deleted = _sync_deletes(sconn, pcur, settings, table, meta, pg_types)
-                    logger.info("삭제 동기화: %d행 제거", deleted)
+                    logger.info("정리 동기화: %d행 제거", deleted)
 
             pconn.commit()
 

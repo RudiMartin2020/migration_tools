@@ -5,7 +5,7 @@
 #   예)    ./sync.sh ds_tools
 #          ./sync.sh ds_tools --incremental updated_at
 #          ./sync.sh ds_tools tool_log --incremental updated_at -v
-#          ALLOW_DELETE 는 .env 에서 제어 (--delete 사용 시)
+#          ALLOW_PRUNE 는 .env 에서 제어 (--prune 사용 시)
 #
 # 어느 위치(cron 포함)에서 실행해도 동작하도록 스크립트 폴더로 이동한다.
 # 종료코드: 0 정상 / 1 일부 테이블 실패 / 2 설정·인자 오류 / 127 uv 없음
@@ -32,7 +32,7 @@ if [ "$#" -eq 0 ]; then
   옵션:
     --incremental <컬럼>   증분 동기화 (변경분만)
     --full-refresh         증분 워터마크 무시하고 전체 재동기화
-    --delete               원본에 없는 행 삭제 (.env ALLOW_DELETE=true 필요)
+    --prune                원본에 없는 행 정리 (.env ALLOW_PRUNE=true 필요)
     --sync-sequence        동기화 후 PK 시퀀스 보정
     -v                     상세 로그
   예:

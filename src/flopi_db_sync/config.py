@@ -21,7 +21,7 @@ class Settings:
     pg_schema: str
     batch_size: int
     state_file: str
-    allow_delete: bool
+    allow_prune: bool
     sync_sequence: bool
     insert_only: bool
     add_columns: bool
@@ -60,7 +60,7 @@ def load_settings() -> Settings:
         pg_schema=os.getenv("PG_SCHEMA", "public"),
         batch_size=int(os.getenv("BATCH_SIZE", "1000")),
         state_file=os.getenv("STATE_FILE", ".flopi_db_sync_state.json"),
-        allow_delete=_env_bool("ALLOW_DELETE", default=False),
+        allow_prune=_env_bool("ALLOW_PRUNE", default=False),
         sync_sequence=_env_bool("SYNC_SEQUENCE", default=False),
         insert_only=_env_bool("INSERT_ONLY", default=False),
         add_columns=_env_bool("ADD_COLUMNS", default=False),

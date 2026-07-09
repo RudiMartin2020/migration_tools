@@ -420,7 +420,21 @@ def sync_table(
                             if v is not None and (max_wm is None or v > max_wm):
                                 max_wm = v
                     converted = [_convert_row(r, converters) for r in rows]
-                    pcur.executemany(upsert, converted)
+                    try:
+                        pcur.executemany(upsert, converted)
+                    except psycopg.errors.IntegrityError as exc:
+                        # 어느 키/제약에서 막혔는지 추적 가능하게 상세 로깅
+                        d = exc.diag
+                        logger.error(
+                            "제약 위반: 테이블 %s | 제약 %s | %s | 배치 %d~%d행 (PK %s)",
+                            table,
+                            d.constraint_name or "?",
+                            d.message_detail or exc,
+                            read_rows + 1,
+                            read_rows + len(rows),
+                            [tuple(r[meta.columns.index(k)] for k in meta.pk) for r in rows][:20],
+                        )
+                        raise
                     read_rows += len(rows)
                     if pcur.rowcount and pcur.rowcount > 0:
                         affected += pcur.rowcount

@@ -20,4 +20,6 @@ TABLES="ds_tools chat_scenarios"
 INCREMENTAL_COL="updated_at"
 # =========================================
 
-./sync.sh $TABLES --incremental "$INCREMENTAL_COL" -v
+# --insert-only: 중복(PK·보조 UNIQUE)인 행은 스킵하고 신규만 INSERT
+#   (기존 행의 값 변경은 반영되지 않음 — upsert 로 되돌리려면 플래그 제거)
+./sync.sh $TABLES --incremental "$INCREMENTAL_COL" --insert-only -v

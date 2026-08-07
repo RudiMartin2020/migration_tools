@@ -95,7 +95,7 @@ uv run python -m flopi_db_sync users -v    # 상세 로그
 | `--incremental COL` | `COL` 워터마크 기준 변경분만 전송 (전체 스캔 회피) |
 | `--full-refresh` | 저장된 워터마크 무시하고 전체 재동기화 |
 | `--sync-sequence` | 동기화 후 PK 시퀀스(SERIAL/IDENTITY)를 최댓값으로 보정. **PK 시퀀스 탐지는 항상 수행**되고, 보정만 이 옵션(또는 `.env` `SYNC_SEQUENCE=true`)으로 켜짐 |
-| `--insert-only` | PK 중복은 무시하고 신규만 INSERT (변경분 UPDATE 안 함, `ON CONFLICT DO NOTHING`). `.env` `INSERT_ONLY=true` 로도 가능 |
+| `--insert-only` | 중복인 행(**PK·보조 UNIQUE 모두**)은 스킵하고 신규만 INSERT (변경분 UPDATE 안 함, 대상 미지정 `ON CONFLICT DO NOTHING`). `.env` `INSERT_ONLY=true` 로도 가능 |
 | `--add-columns` | 원본에 있고 PG에 없는 컬럼을 `ALTER ADD COLUMN` 으로 자동 추가 (테이블 생성 X, 삭제·타입변경은 경고만). `.env` `ADD_COLUMNS=true` 로도 가능 |
 | `--migrate-dry-run` | `ADD COLUMN` DDL 만 출력하고 실행·동기화는 안 함 (`--add-columns` 와 함께) |
 | `-v, --verbose` | 상세 로그 |
@@ -148,7 +148,9 @@ flopi-sync <테이블명>
 4. `--incremental` 시 워터마크 컬럼 `>= 직전값` 행만 읽어 전송하고, 커밋 성공 후
    새 최댓값을 `STATE_FILE` 에 저장한다. (`>=` 라 같은 시각 행도 누락되지 않음)
 5. `--prune` 시 원본 PK 전체를 임시 테이블(COPY)에 적재한 뒤 anti-join `DELETE`
-   로 PG의 잉여행을 제거한다. (upsert·삭제가 같은 트랜잭션 내에서 원자적으로 반영)
+   로 PG의 잉여행을 제거한다. **upsert 보다 먼저 실행**되어, 원본에서 PK가 바뀌어
+   재등록된 행의 구행이 보조 UNIQUE 제약과 충돌하는 것을 방지한다.
+   (삭제·upsert 는 같은 트랜잭션 내에서 원자적으로 반영)
 6. PK 시퀀스(SERIAL/IDENTITY)를 **항상 탐지**해 로그로 알리고, `--sync-sequence`
    (또는 `SYNC_SEQUENCE=true`) 시 동기화 후 시퀀스를 최댓값으로 보정한다.
 7. 테이블 단위로 트랜잭션 커밋. 한 테이블 실패가 다른 테이블에 영향 없음.

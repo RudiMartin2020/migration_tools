@@ -205,8 +205,16 @@ def _build_upsert(
     placeholders = sql.SQL(", ").join(sql.Placeholder() for _ in meta.columns)
     conflict = sql.SQL(", ").join(sql.Identifier(c) for c in meta.pk)
 
-    # insert_only: PK 중복은 무시(갱신 안 함) / non_pk 없을 때도 갱신할 게 없음
-    if insert_only or not non_pk:
+    # insert_only: 충돌 대상 미지정 DO NOTHING
+    #   → PK 중복이든 보조 UNIQUE 중복이든 해당 행만 스킵하고 계속 진행
+    if insert_only:
+        return sql.SQL(
+            "INSERT INTO {tbl} ({cols}) VALUES ({vals}) "
+            "ON CONFLICT DO NOTHING"
+        ).format(tbl=table_ident, cols=cols, vals=placeholders)
+
+    # PK 외 컬럼이 없으면 갱신할 것이 없음 → PK 중복은 무시
+    if not non_pk:
         return sql.SQL(
             "INSERT INTO {tbl} ({cols}) VALUES ({vals}) "
             "ON CONFLICT ({conflict}) DO NOTHING"
@@ -385,7 +393,7 @@ def sync_table(
                 converters = _build_converters(meta, pg_types)
                 upsert = _build_upsert(settings.pg_schema, table, meta, insert_only)
                 if insert_only:
-                    logger.info("insert-only 모드: PK 중복은 무시(갱신 안 함)")
+                    logger.info("insert-only 모드: 중복(PK·UNIQUE)은 스킵, 신규만 INSERT")
 
                 # PK 시퀀스(SERIAL/IDENTITY) 탐지 — 읽기전용, 항상 수행
                 pk_seqs = _pk_sequences(pcur, settings.pg_schema, table, meta.pk)
@@ -393,6 +401,13 @@ def sync_table(
                     logger.info("PK 시퀀스 감지: %s", pk_seqs)
                 else:
                     logger.info("PK 시퀀스 없음 (시퀀스 보정 불필요)")
+
+                # 정리 동기화 — upsert 보다 먼저 실행 (같은 트랜잭션):
+                # 원본에서 PK 가 바뀌어 재등록된 행의 구행이 남아 있으면
+                # 보조 UNIQUE 제약에서 신행 INSERT 와 충돌하므로 먼저 지운다.
+                if prune:
+                    deleted = _sync_deletes(sconn, pcur, settings, table, meta, pg_types)
+                    logger.info("정리 동기화: %d행 제거", deleted)
 
                 # SQLite SELECT (증분 필터 + 정렬)
                 # 경계값을 '>=' 로 재처리: 같은 시각(초 단위) 행 누락 방지.
@@ -439,11 +454,6 @@ def sync_table(
                     if pcur.rowcount and pcur.rowcount > 0:
                         affected += pcur.rowcount
                     logger.info("진행: %d행 전송", read_rows)
-
-                # 정리 동기화 (같은 트랜잭션 내, upsert 이후)
-                if prune:
-                    deleted = _sync_deletes(sconn, pcur, settings, table, meta, pg_types)
-                    logger.info("정리 동기화: %d행 제거", deleted)
 
             pconn.commit()
 

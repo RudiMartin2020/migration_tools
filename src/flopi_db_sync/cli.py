@@ -43,7 +43,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--insert-only", action="store_true",
-        help="PK 중복은 무시하고 신규만 INSERT (변경분 UPDATE 안 함, ON CONFLICT DO NOTHING)",
+        help="중복(PK·보조 UNIQUE 모두)은 스킵하고 신규만 INSERT (변경분 UPDATE 안 함)",
     )
     parser.add_argument(
         "--add-columns", action="store_true",
